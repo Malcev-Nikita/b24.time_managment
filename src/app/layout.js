@@ -30,7 +30,7 @@ export default function RootLayout({ children }) {
       lang="ru"
       className={`${firaCode.variable} h-full antialiased`}
     >
-      <body className="container m-auto h-full w-full mt-15">
+      <body className="container m-auto h-full w-full mt-10">
         <StoreProvider>
           <Header/>
 

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --background: #f1eae1;
   --foreground: #171717;
 }
 
@@ -10,6 +10,29 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-fira-code);
   --font-mono: var(--font-fira-code);
+}
+
+@theme {
+  --animate-rise-in: riseIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-grow-w: growW 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes riseIn {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+
+  @keyframes growW {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
 }
 
 body {
