@@ -27,7 +27,7 @@ export default function Header() {
         <header className="flex items-end justify-between gap-6 wrap-normal mb-7">
             <div>
                 <div className="flex items-center gap-3 mb-2.5">
-                    <button type="button" onClick={refreshAll} title="Обновить данные" className="w-8.5 h-8.5 rounded-[10px] bg-[#bf5b3b] flex items-center justify-center shadow-[0_2px_8px_rgba(191,91,59,0.35)]">
+                    <button type="button" onClick={refreshAll} title="Обновить данные" className="w-8.5 h-8.5 cursor-pointer rounded-[10px] bg-[#bf5b3b] flex items-center justify-center shadow-[0_2px_8px_rgba(191,91,59,0.35)]">
                         <div className={`w-3.25 h-3.25 ${isLoading ? 'animate-spin' : ''}`}>
                             <Image className="w-full h-full" src="/icons/reload.svg" alt="Обновить" width={13} height={13} />
                         </div>

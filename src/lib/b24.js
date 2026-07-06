@@ -62,9 +62,9 @@ function ymd(date) {
     return `${y}-${m}-${d}`
 }
 
-export const PERIODS = ['today', 'week', 'month', 'all']
+export const PERIODS = ['today', 'week', 'month', 'year']
 
-// Начало периода (или null для "всё время")
+// Начало периода
 export function periodStart(period) {
     const now = new Date()
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -74,7 +74,7 @@ export function periodStart(period) {
         return d
     }
     if (period === 'month') return new Date(now.getFullYear(), now.getMonth(), 1)
-    return null
+    return new Date(now.getFullYear(), 0, 1) // year — с 1 января
 }
 
 // id пользователя, которому принадлежит вебхук
@@ -118,6 +118,7 @@ export async function buildReport(userId, period) {
 
     const byTask = new Map()
     const byDay = new Map()
+    const byHour = new Map()
     let totalSeconds = 0
 
     for (const i of items) {
@@ -130,8 +131,12 @@ export async function buildReport(userId, period) {
         t.entries += 1
         byTask.set(taskId, t)
 
+        // CREATED_DATE приходит в ISO: "2026-07-05T12:34:56+03:00"
         const day = String(i.CREATED_DATE).slice(0, 10)
         byDay.set(day, (byDay.get(day) || 0) + sec)
+
+        const hour = Number(String(i.CREATED_DATE).slice(11, 13))
+        byHour.set(hour, (byHour.get(hour) || 0) + sec)
     }
 
     const titles = await getTaskTitles([...byTask.keys()])
@@ -143,6 +148,13 @@ export async function buildReport(userId, period) {
     const days = [...byDay.entries()]
         .map(([date, seconds]) => ({ date, seconds }))
         .sort((a, b) => b.date.localeCompare(a.date))
+
+    // Почасовая разбивка имеет смысл только для "сегодня"
+    const hours = period === 'today'
+        ? [...byHour.entries()]
+            .map(([hour, seconds]) => ({ hour, seconds }))
+            .sort((a, b) => a.hour - b.hour)
+        : undefined
 
     // Среднее за рабочий день — по дням, в которые есть хотя бы одна запись
     const avgSeconds = days.length ? Math.round(totalSeconds / days.length) : 0
@@ -156,5 +168,6 @@ export async function buildReport(userId, period) {
         workedDays: days.length,
         tasks,
         days,
+        hours,
     }
 }

@@ -1,23 +1,15 @@
 'use client'
 
-import { useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { getTimeReport } from "@/store/time/time.slice";
-import { filterSlugById } from "@/shared/filters";
+import { useSelector } from "react-redux";
 import Task from "@/entities/task";
 
 // Цвета полос по позиции задачи — от самой объёмной к остальным
 const BAR_COLORS = ['#b24a2c', '#c8663b', '#d5813f', '#dfa24f', '#c79a6e', '#a9835f']
 
+// Отчёт загружает ContentHeader — здесь только чтение из стора
 export default function Tasks() {
-    const dispatch = useDispatch()
-    const filterId = useSelector((state) => state.filter.filterId)
     const { report, reportLoading } = useSelector((state) => state.time)
     const userId = useSelector((state) => state.profile.profileInfo?.ID)
-
-    useEffect(() => {
-        dispatch(getTimeReport(filterSlugById(filterId)))
-    }, [dispatch, filterId])
 
     const tasks = report?.tasks || []
     const maxSeconds = tasks[0]?.seconds || 0 // задачи отсортированы по убыванию времени

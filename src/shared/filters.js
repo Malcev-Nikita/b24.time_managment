@@ -2,7 +2,7 @@ export const FILTERS = [
     { id: 1, slug: 'today', name: 'Сегодня' },
     { id: 2, slug: 'week', name: 'Неделя' },
     { id: 3, slug: 'month', name: 'Месяц' },
-    { id: 4, slug: 'all', name: 'Всё время' },
+    { id: 4, slug: 'year', name: 'Год' },
 ]
 
 export function filterSlugById(id) {
@@ -26,6 +26,6 @@ export function periodLabel(id) {
             return label[0].toUpperCase() + label.slice(1)
         }
         default:
-            return 'За всё время'
+            return `${now.getFullYear()} год`
     }
 }
