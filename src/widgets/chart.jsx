@@ -11,7 +11,7 @@ const MONTH_LABELS = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн'
 const TITLES = {
     today: 'По часам',
     week: 'По дням недели',
-    month: 'По дням',
+    month: 'По неделям',
     year: 'По месяцам',
 }
 
@@ -48,16 +48,22 @@ function buildBars(slug, report) {
     }
 
     if (slug === 'month') {
+        // Недели месяца (Пн–Вс), первая и последняя могут быть неполными
         const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-        return Array.from({ length: daysInMonth }, (_, i) => {
-            const day = i + 1
-            return {
-                key: day,
-                label: String(day),
-                name: String(day),
-                seconds: byDay.get(ymd(new Date(now.getFullYear(), now.getMonth(), day))) || 0,
-            }
-        })
+        const weeks = []
+        for (let day = 1; day <= daysInMonth; day++) {
+            const date = new Date(now.getFullYear(), now.getMonth(), day)
+            if (day === 1 || date.getDay() === 1) weeks.push({ start: day, end: day, seconds: 0 })
+            const week = weeks[weeks.length - 1]
+            week.end = day
+            week.seconds += byDay.get(ymd(date)) || 0
+        }
+        return weeks.map((w) => ({
+            key: w.start,
+            label: `${w.start}–${w.end}`,
+            name: `${w.start}–${w.end}`,
+            seconds: w.seconds,
+        }))
     }
 
     // year — суммируем дни по месяцам ("2026-07-05" -> месяц 6)
@@ -82,6 +88,8 @@ export default function Chart() {
     const bars = buildBars(slug, report)
     const maxSeconds = Math.max(...bars.map((b) => b.seconds))
     const peakBar = maxSeconds ? bars.find((b) => b.seconds === maxSeconds) : null
+    // Подписи значений показываем, только когда столбиков немного и они не наезжают друг на друга
+    const showValues = bars.length <= 12
 
     return (
         <div className={`bg-[#fbf7f2] border border-[#e9e0d4] rounded-[20px] pt-6 px-6.5 pb-5 ${reportLoading ? 'opacity-60' : ''}`}>
@@ -95,6 +103,7 @@ export default function Chart() {
                     <Bar
                         key={bar.key}
                         label={bar.label}
+                        value={showValues ? fmt(bar.seconds) : null}
                         seconds={bar.seconds}
                         height={maxSeconds ? (bar.seconds / maxSeconds) * 100 : 0}
                         peak={peakBar ? bar.seconds === maxSeconds : false}
