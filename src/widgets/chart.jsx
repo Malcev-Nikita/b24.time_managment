@@ -103,6 +103,7 @@ export default function Chart() {
                     <Bar
                         key={bar.key}
                         label={bar.label}
+                        name={bar.name}
                         value={showValues ? fmt(bar.seconds) : null}
                         seconds={bar.seconds}
                         height={maxSeconds ? (bar.seconds / maxSeconds) * 100 : 0}

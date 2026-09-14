@@ -10,7 +10,7 @@ export default function ContentHeaderItem4({ report }) {
             </div>
 
             <div className="mt-2.5 text-[13.5px] text-[#8b7c6e]">
-                затрекано время
+                {report ? `из них в работе: ${report.inProgress}` : 'затрекано время'}
             </div>
         </div>
     )

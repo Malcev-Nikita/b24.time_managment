@@ -111,10 +111,32 @@ async function getTaskTitles(ids) {
     return titles
 }
 
+// Задачи в статусе «Выполняется» с включённым учётом времени, где пользователь
+// исполнитель или соисполнитель -> Map(id -> title).
+// Два запроса вместо ::SUBFILTER-1 с ::LOGIC OR — такой подфильтр теряет часть задач
+async function getMyTasksInProgress(userId) {
+    const base = { REAL_STATUS: 3, ALLOW_TIME_TRACKING: 'Y' }
+    const lists = await Promise.all(
+        [{ RESPONSIBLE_ID: userId }, { ACCOMPLICE: userId }].map((role) =>
+            b24AllPages(
+                'tasks.task.list',
+                { filter: { ...base, ...role }, select: ['ID', 'TITLE'] },
+                (result) => result.tasks
+            )
+        )
+    )
+    const tasks = new Map()
+    for (const t of lists.flat()) tasks.set(Number(t.id), t.title)
+    return tasks
+}
+
 // Сводка: записи -> итог, разбивка по задачам и по дням
 export async function buildReport(userId, period) {
     const from = periodStart(period)
-    const items = await getMyElapsed(userId, from)
+    const [items, inProgress] = await Promise.all([
+        getMyElapsed(userId, from),
+        getMyTasksInProgress(userId),
+    ])
 
     const byTask = new Map()
     const byDay = new Map()
@@ -139,10 +161,19 @@ export async function buildReport(userId, period) {
         byHour.set(hour, (byHour.get(hour) || 0) + sec)
     }
 
-    const titles = await getTaskTitles([...byTask.keys()])
+    // Задачи в работе попадают в список, даже если за период по ним ещё нет записей.
+    // Время идущего таймера не учитывается: REST его не отдаёт, запись появляется после паузы
+    for (const taskId of inProgress.keys())
+        if (!byTask.has(taskId)) byTask.set(taskId, { taskId, seconds: 0, entries: 0 })
+
+    const titles = await getTaskTitles([...byTask.keys()].filter((id) => !inProgress.has(id)))
 
     const tasks = [...byTask.values()]
-        .map((t) => ({ ...t, title: titles.get(t.taskId) || `Задача #${t.taskId}` }))
+        .map((t) => ({
+            ...t,
+            title: inProgress.get(t.taskId) || titles.get(t.taskId) || `Задача #${t.taskId}`,
+            inProgress: inProgress.has(t.taskId),
+        }))
         .sort((a, b) => b.seconds - a.seconds)
 
     const days = [...byDay.entries()]
@@ -166,6 +197,7 @@ export async function buildReport(userId, period) {
         avgSeconds,
         entries: items.length,
         workedDays: days.length,
+        inProgress: inProgress.size,
         tasks,
         days,
         hours,

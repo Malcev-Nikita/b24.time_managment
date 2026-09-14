@@ -9,7 +9,8 @@ const OTHER_COLOR = '#c9b7a3'
 
 // Топ-5 задач + агрегат «Прочее (N)» по остальным
 function buildShares(report) {
-    const tasks = report?.tasks || []
+    // Задачи в работе без записей за период долей не имеют — не раздуваем ими «Прочее»
+    const tasks = (report?.tasks || []).filter((task) => task.seconds > 0)
     const totalSeconds = report?.totalSeconds || 0
     if (!totalSeconds) return []
 

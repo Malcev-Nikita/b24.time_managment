@@ -9,8 +9,13 @@ export default function Task({ task, number, color, width, userId }) {
         >
             <span className="font-mono text-[13px] text-[#b3a38f]">{number}</span>
 
-            <div className="min-w-0 pr-4">
+            <div className="min-w-0 pr-4 flex items-center gap-2">
                 <div className="text-[15px] font-medium text-[#2a241f] truncate">{task.title}</div>
+                {task.inProgress && (
+                    <span className="shrink-0 rounded-md bg-[#f3e4d9] px-1.5 py-0.5 text-[11.5px] font-semibold text-[#b24a2c]">
+                        в работе
+                    </span>
+                )}
             </div>
 
             <div className="pr-4">
