@@ -4,13 +4,13 @@ export const getProfileInfo = createAsyncThunk(
     'profile/info',
     async (_, { rejectWithValue }) => {
         const response = await fetch('/api/b24/profile')
+        const data = await response.json().catch(() => null)
 
         if (!response.ok) {
-            return rejectWithValue('Network response was not ok')
+            return rejectWithValue(data?.error || `Не удалось загрузить профиль (${response.status})`)
         }
 
-        const { result: data } = await response.json()
-        return data
+        return data.result
     }
 );
 

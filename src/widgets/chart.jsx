@@ -4,80 +4,14 @@ import { useSelector } from "react-redux";
 import { filterSlugById } from "@/shared/filters";
 import Bar from "@/entities/bar";
 import { fmt } from "@/shared/format";
-
-const DAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-const MONTH_LABELS = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек']
+import { DAY_NORM_SECONDS } from "@/shared/norm";
+import { buildBars } from "./chartBars";
 
 const TITLES = {
     today: 'По часам',
     week: 'По дням недели',
     month: 'По неделям',
     year: 'По месяцам',
-}
-
-function ymd(date) {
-    const y = date.getFullYear()
-    const m = String(date.getMonth() + 1).padStart(2, '0')
-    const d = String(date.getDate()).padStart(2, '0')
-    return `${y}-${m}-${d}`
-}
-
-function buildBars(slug, report) {
-    const now = new Date()
-
-    if (slug === 'today') {
-        const byHour = new Map((report?.hours || []).map((h) => [h.hour, h.seconds]))
-        return Array.from({ length: 24 }, (_, hour) => ({
-            key: hour,
-            label: String(hour),
-            name: `${hour}:00`,
-            seconds: byHour.get(hour) || 0,
-        }))
-    }
-
-    const byDay = new Map((report?.days || []).map((d) => [d.date, d.seconds]))
-
-    if (slug === 'week') {
-        const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-        monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
-        return DAY_LABELS.map((label, i) => {
-            const d = new Date(monday)
-            d.setDate(monday.getDate() + i)
-            return { key: label, label, name: label, seconds: byDay.get(ymd(d)) || 0 }
-        })
-    }
-
-    if (slug === 'month') {
-        // Недели месяца (Пн–Вс), первая и последняя могут быть неполными
-        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-        const weeks = []
-        for (let day = 1; day <= daysInMonth; day++) {
-            const date = new Date(now.getFullYear(), now.getMonth(), day)
-            if (day === 1 || date.getDay() === 1) weeks.push({ start: day, end: day, seconds: 0 })
-            const week = weeks[weeks.length - 1]
-            week.end = day
-            week.seconds += byDay.get(ymd(date)) || 0
-        }
-        return weeks.map((w) => ({
-            key: w.start,
-            label: `${w.start}–${w.end}`,
-            name: `${w.start}–${w.end}`,
-            seconds: w.seconds,
-        }))
-    }
-
-    // year — суммируем дни по месяцам ("2026-07-05" -> месяц 6)
-    const byMonth = new Map()
-    for (const [date, seconds] of byDay) {
-        const month = Number(date.slice(5, 7)) - 1
-        byMonth.set(month, (byMonth.get(month) || 0) + seconds)
-    }
-    return MONTH_LABELS.map((label, month) => ({
-        key: label,
-        label,
-        name: label,
-        seconds: byMonth.get(month) || 0,
-    }))
 }
 
 export default function Chart() {
@@ -88,17 +22,24 @@ export default function Chart() {
     const bars = buildBars(slug, report)
     const maxSeconds = Math.max(...bars.map((b) => b.seconds))
     const peakBar = maxSeconds ? bars.find((b) => b.seconds === maxSeconds) : null
+    // Линия нормы — только там, где столбик равен дню
+    const norm = slug === 'week' ? DAY_NORM_SECONDS : null
+    // Шкала не ниже нормы, чтобы линия не уходила за верх графика
+    const scale = Math.max(maxSeconds, norm || 0)
     // Подписи значений показываем, только когда столбиков немного и они не наезжают друг на друга
     const showValues = bars.length <= 12
 
     return (
-        <div className={`bg-[#fbf7f2] border border-[#e9e0d4] rounded-[20px] pt-6 px-6.5 pb-5 ${reportLoading ? 'opacity-60' : ''}`}>
-            <div className="flex items-baseline justify-between mb-5.5">
+        <div className={`bg-[#fbf7f2] border border-[#e9e0d4] rounded-[20px] pt-6 px-4 sm:px-6.5 pb-5 ${reportLoading ? 'opacity-60' : ''}`}>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-5.5">
                 <h2 className="text-[17px] font-semibold tracking-[-0.01em]">{TITLES[slug]}</h2>
-                <span className="text-[13px] text-[#a0917f]">{peakBar ? `пик · ${peakBar.name} · ${fmt(maxSeconds)}` : '—'}</span>
+                <span className="text-[13px] text-[#a0917f]">
+                    {norm ? `норма ${fmt(norm)} · ` : ''}
+                    {peakBar ? `пик · ${peakBar.name} · ${fmt(maxSeconds)}` : '—'}
+                </span>
             </div>
 
-            <div className={`flex items-end h-47.5 ${bars.length > 12 ? 'gap-1' : 'gap-3.5'}`}>
+            <div className={`flex items-end h-47.5 ${bars.length > 12 ? 'gap-0.5 sm:gap-1' : 'gap-2 sm:gap-3.5'}`}>
                 {bars.map((bar) => (
                     <Bar
                         key={bar.key}
@@ -106,8 +47,10 @@ export default function Chart() {
                         name={bar.name}
                         value={showValues ? fmt(bar.seconds) : null}
                         seconds={bar.seconds}
-                        height={maxSeconds ? (bar.seconds / maxSeconds) * 100 : 0}
+                        height={scale ? (bar.seconds / scale) * 100 : 0}
                         peak={peakBar ? bar.seconds === maxSeconds : false}
+                        minor={bar.minor}
+                        norm={norm ? (norm / scale) * 100 : null}
                     />
                 ))}
             </div>

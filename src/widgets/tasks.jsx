@@ -1,7 +1,7 @@
 'use client'
 
 import { useSelector } from "react-redux";
-import Task from "@/entities/task";
+import Task, { TASK_GRID } from "@/entities/task";
 
 // Цвета полос по позиции задачи — от самой объёмной к остальным
 const BAR_COLORS = ['#b24a2c', '#c8663b', '#d5813f', '#dfa24f', '#c79a6e', '#a9835f']
@@ -9,18 +9,17 @@ const BAR_COLORS = ['#b24a2c', '#c8663b', '#d5813f', '#dfa24f', '#c79a6e', '#a98
 // Отчёт загружает ContentHeader — здесь только чтение из стора
 export default function Tasks() {
     const { report, reportLoading } = useSelector((state) => state.time)
-    const userId = useSelector((state) => state.profile.profileInfo?.ID)
 
     const tasks = report?.tasks || []
     const maxSeconds = tasks[0]?.seconds || 0 // задачи отсортированы по убыванию времени
 
     return (
-        <section className={`bg-[#fbf7f2] border border-[#e9e0d4] rounded-[20px] pt-2 px-2 pb-3 ${reportLoading ? 'opacity-60' : ''}`}>
-            <div className="grid grid-cols-[40px_1fr_130px_88px_120px] items-center pt-4 px-5 pb-3 text-xs tracking-[0.08em] uppercase text-[#a99a88] font-semibold">
+        <section className={`bg-[#fbf7f2] border border-[#e9e0d4] rounded-[20px] pt-2 px-1 sm:px-2 pb-3 ${reportLoading ? 'opacity-60' : ''}`}>
+            <div className={`${TASK_GRID} pt-4 pb-3 text-xs tracking-[0.08em] uppercase text-[#a99a88] font-semibold`}>
                 <span>№</span>
                 <span>Задача</span>
-                <span>Доля</span>
-                <span className="text-right">Записей</span>
+                <span className="hidden md:block">Доля</span>
+                <span className="hidden md:block text-right">Записей</span>
                 <span className="text-right">Время</span>
             </div>
 
@@ -32,7 +31,7 @@ export default function Tasks() {
                         number={String(index + 1).padStart(2, '0')}
                         color={BAR_COLORS[Math.min(index, BAR_COLORS.length - 1)]}
                         width={maxSeconds ? (item.seconds / maxSeconds) * 100 : 0}
-                        userId={userId}
+                        href={report.portal && `${report.portal}/company/personal/user/${report.userId}/tasks/task/view/${item.taskId}/`}
                     />
                 )
             })}

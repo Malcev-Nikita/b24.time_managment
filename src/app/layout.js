@@ -1,10 +1,6 @@
 import { Fira_Code } from "next/font/google";
 import "./globals.css";
 
-import Header from "@/widgets/header";
-import StoreProvider from "@/store/store-provide";
-import Footer from "@/widgets/footer";
-
 const firaCode = Fira_Code({
   variable: "--font-fira-code",
   subsets: ["latin", "cyrillic"],
@@ -30,14 +26,8 @@ export default function RootLayout({ children }) {
       lang="ru"
       className={`${firaCode.variable} h-full antialiased`}
     >
-      <body className="container m-auto h-full w-full mt-10">
-        <StoreProvider>
-          <Header/>
-
-          {children}
-
-          <Footer />
-        </StoreProvider>
+      <body className="container m-auto h-full w-full mt-6 px-4 sm:mt-10">
+        {children}
       </body>
     </html>
   );

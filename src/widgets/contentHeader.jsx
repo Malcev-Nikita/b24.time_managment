@@ -10,19 +10,23 @@ import ContentHeaderItem2 from "@/entities/content_header/item2";
 import ContentHeaderItem3 from "@/entities/content_header/item3";
 import ContentHeaderItem4 from "@/entities/content_header/item4";
 
+// Единственное место, где загружается отчёт: при старте, смене фильтра и по кнопке «Обновить»
 export default function ContentHeader() {
     const dispatch = useDispatch()
     const filterId = useSelector((state) => state.filter.filterId)
+    const reloadKey = useSelector((state) => state.time.reloadKey)
     const { report, reportLoading } = useSelector((state) => state.time)
 
     useEffect(() => {
-        dispatch(getTimeReport(filterSlugById(filterId)))
-    }, [dispatch, filterId])
+        const request = dispatch(getTimeReport(filterSlugById(filterId)))
+        // Фильтр сменили раньше, чем пришёл ответ, — прежний запрос больше не нужен
+        return () => request.abort()
+    }, [dispatch, filterId, reloadKey])
 
     const total = splitHours(report?.totalSeconds)
 
     return (
-        <section className={`grid grid-cols-[1.5fr_1fr_1fr_1fr] gap-4 ${reportLoading ? 'opacity-60' : ''}`}>
+        <section className={`grid grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1fr] gap-3 sm:gap-4 ${reportLoading ? 'opacity-60' : ''}`}>
             <ContentHeaderItem1 report={report} total={total} />
 
             <ContentHeaderItem2 report={report} />

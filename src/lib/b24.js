@@ -1,18 +1,30 @@
 // Серверная работа с REST Битрикс24. Только для route handlers —
 // вебхук из env не должен попадать в клиентский код.
 
+import { periodStart, previousRange, ymd, ymdhms } from '@/shared/dates'
+import { aggregate, entriesUntil, summarize } from './report'
+
 const B24_WEBHOOK = process.env.B24_WEBHOOK
 
 // Вызов метода REST Битрикс24
 export async function b24(method, params = {}) {
+    if (!B24_WEBHOOK) throw new Error('не задан B24_WEBHOOK в .env.local')
+
     const res = await fetch(B24_WEBHOOK + method, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
     })
-    const data = await res.json()
+    // При сбоях портал может ответить HTML-страницей — не падаем на разборе JSON
+    const data = await res.json().catch(() => null)
+    if (!data) throw new Error(`${method}: портал ответил ${res.status} ${res.statusText}`)
     if (data.error) throw new Error(`${method}: ${data.error} — ${data.error_description}`)
     return data
+}
+
+// Адрес портала для ссылок на задачи: https://xxx.bitrix24.ru
+export function portalUrl() {
+    return B24_WEBHOOK ? new URL(B24_WEBHOOK).origin : null
 }
 
 // Объект -> query string в PHP-стиле: FILTER[USER_ID]=232&SELECT[0]=ID...
@@ -54,39 +66,26 @@ async function b24AllPages(method, params, extract, pageParams) {
     return items
 }
 
-// "2026-07-02"
-function ymd(date) {
-    const y = date.getFullYear()
-    const m = String(date.getMonth() + 1).padStart(2, '0')
-    const d = String(date.getDate()).padStart(2, '0')
-    return `${y}-${m}-${d}`
-}
-
 export const PERIODS = ['today', 'week', 'month', 'year']
 
-// Начало периода
-export function periodStart(period) {
-    const now = new Date()
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    if (period === 'today') return d
-    if (period === 'week') {
-        d.setDate(d.getDate() - ((d.getDay() + 6) % 7)) // понедельник текущей недели
-        return d
-    }
-    if (period === 'month') return new Date(now.getFullYear(), now.getMonth(), 1)
-    return new Date(now.getFullYear(), 0, 1) // year — с 1 января
-}
-
-// id пользователя, которому принадлежит вебхук
+// id пользователя, которому принадлежит вебхук. Не меняется, пока не сменили вебхук, —
+// запоминаем, чтобы не тратить на profile запрос при каждом отчёте
+let currentUserId = null
 export async function getCurrentUserId() {
-    const data = await b24('profile')
-    return Number(data.result.ID)
+    if (!currentUserId) {
+        const data = await b24('profile')
+        currentUserId = Number(data.result.ID)
+    }
+    return currentUserId
 }
 
-// Все записи учёта времени пользователя за период (с обходом пагинации)
-async function getMyElapsed(userId, from) {
-    const FILTER = { USER_ID: userId }
-    if (from) FILTER['>=CREATED_DATE'] = ymd(from)
+// Все записи учёта времени пользователя за дни [from, to] (с обходом пагинации)
+async function getMyElapsed(userId, from, to) {
+    const FILTER = { USER_ID: userId, '>=CREATED_DATE': ymd(from) }
+    if (to) {
+        const next = new Date(to.getFullYear(), to.getMonth(), to.getDate() + 1)
+        FILTER['<CREATED_DATE'] = ymd(next)
+    }
     // Позиционный порядок параметров важен для batch: ORDER, FILTER, SELECT, PARAMS
     const ORDER = { CREATED_DATE: 'desc' }
     const SELECT = ['ID', 'TASK_ID', 'SECONDS', 'CREATED_DATE']
@@ -130,76 +129,33 @@ async function getMyTasksInProgress(userId) {
     return tasks
 }
 
-// Сводка: записи -> итог, разбивка по задачам и по дням
+// Тот же отрезок прошлого периода — для сравнения «+2ч к прошлой неделе».
+// Записи берём по дням, а последний день обрезаем по текущему времени
+async function getPrevious(userId, period, now) {
+    const { from, to } = previousRange(period, now)
+    const items = entriesUntil(await getMyElapsed(userId, from, to), ymdhms(to))
+    return { from: ymd(from), to: ymdhms(to), ...summarize(items) }
+}
+
+// Сводка: записи -> итог, разбивка по задачам и по дням, сравнение с прошлым периодом
 export async function buildReport(userId, period) {
-    const from = periodStart(period)
-    const [items, inProgress] = await Promise.all([
+    const now = new Date()
+    const from = periodStart(period, now)
+    const [items, inProgress, previous] = await Promise.all([
         getMyElapsed(userId, from),
         getMyTasksInProgress(userId),
+        getPrevious(userId, period, now),
     ])
 
-    const byTask = new Map()
-    const byDay = new Map()
-    const byHour = new Map()
-    let totalSeconds = 0
-
-    for (const i of items) {
-        const sec = Number(i.SECONDS) || 0
-        totalSeconds += sec
-
-        const taskId = Number(i.TASK_ID)
-        const t = byTask.get(taskId) || { taskId, seconds: 0, entries: 0 }
-        t.seconds += sec
-        t.entries += 1
-        byTask.set(taskId, t)
-
-        // CREATED_DATE приходит в ISO: "2026-07-05T12:34:56+03:00"
-        const day = String(i.CREATED_DATE).slice(0, 10)
-        byDay.set(day, (byDay.get(day) || 0) + sec)
-
-        const hour = Number(String(i.CREATED_DATE).slice(11, 13))
-        byHour.set(hour, (byHour.get(hour) || 0) + sec)
-    }
-
-    // Задачи в работе попадают в список, даже если за период по ним ещё нет записей.
-    // Время идущего таймера не учитывается: REST его не отдаёт, запись появляется после паузы
-    for (const taskId of inProgress.keys())
-        if (!byTask.has(taskId)) byTask.set(taskId, { taskId, seconds: 0, entries: 0 })
-
-    const titles = await getTaskTitles([...byTask.keys()].filter((id) => !inProgress.has(id)))
-
-    const tasks = [...byTask.values()]
-        .map((t) => ({
-            ...t,
-            title: inProgress.get(t.taskId) || titles.get(t.taskId) || `Задача #${t.taskId}`,
-            inProgress: inProgress.has(t.taskId),
-        }))
-        .sort((a, b) => b.seconds - a.seconds)
-
-    const days = [...byDay.entries()]
-        .map(([date, seconds]) => ({ date, seconds }))
-        .sort((a, b) => b.date.localeCompare(a.date))
-
-    // Почасовая разбивка имеет смысл только для "сегодня"
-    const hours = period === 'today'
-        ? [...byHour.entries()]
-            .map(([hour, seconds]) => ({ hour, seconds }))
-            .sort((a, b) => a.hour - b.hour)
-        : undefined
-
-    // Среднее за рабочий день — по дням, в которые есть хотя бы одна запись
-    const avgSeconds = days.length ? Math.round(totalSeconds / days.length) : 0
+    const ids = [...new Set(items.map((i) => Number(i.TASK_ID)))].filter((id) => !inProgress.has(id))
+    const titles = await getTaskTitles(ids)
 
     return {
         period,
-        from: from ? ymd(from) : null,
-        totalSeconds,
-        avgSeconds,
-        entries: items.length,
-        workedDays: days.length,
-        inProgress: inProgress.size,
-        tasks,
-        days,
-        hours,
+        from: ymd(from),
+        userId,
+        portal: portalUrl(),
+        ...aggregate(items, { period, inProgress, titles }),
+        previous,
     }
 }

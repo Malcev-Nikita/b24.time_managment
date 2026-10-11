@@ -9,6 +9,7 @@
       "Bash(npm run lint)",
       "Bash(npm run lint *)",
       "Bash(npm run build)",
+      "Bash(npm test)",
       "Bash(npx eslint *)",
       "Bash(node -v)",
       "Bash(git status *)",

@@ -45,7 +45,7 @@ export default function Shares() {
     const shares = buildShares(report)
 
     return (
-        <div className={`bg-[#fbf7f2] border border-[#e9e0d4] rounded-[20px] py-6 px-6.5 ${reportLoading ? 'opacity-60' : ''}`}>
+        <div className={`bg-[#fbf7f2] border border-[#e9e0d4] rounded-[20px] py-6 px-5 sm:px-6.5 ${reportLoading ? 'opacity-60' : ''}`}>
             <h2 className="mb-5 text-[17px] font-semibold tracking-[-0.01em]">Доли по задачам</h2>
 
             <div className="flex h-3.75 rounded-lg overflow-hidden mb-5.5 bg-[#ede3d7]">

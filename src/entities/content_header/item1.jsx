@@ -1,13 +1,23 @@
+import { FILTERS } from "@/shared/filters";
+import { fmtDiff } from "@/shared/format";
+
+// Сравнение с тем же отрезком прошлого периода: «+2ч 10м к прошлой неделе»
+function comparison(report) {
+    if (!report?.previous) return null
+    const prev = FILTERS.find((f) => f.slug === report.period)?.prev
+    return `${fmtDiff(report.totalSeconds - report.previous.totalSeconds)} ${prev}`
+}
+
 export default function ContentHeaderItem1({ report, total }) {
     return (
-        <div className="bg-[#bf5b3b] text-[#fbede4] rounded-[20px] py-6.5 px-7 relative overflow-hidden shadow-[0_8px_26px_rgba(191,91,59,0.28)]">
+        <div className="col-span-2 lg:col-span-1 bg-[#bf5b3b] text-[#fbede4] rounded-[20px] py-6.5 px-6 sm:px-7 relative overflow-hidden shadow-[0_8px_26px_rgba(191,91,59,0.28)]">
             <div className="absolute -right-7.5 -top-7.5 w-35 h-35 rounded-full bg-white/8"></div>
 
             <div className="text-[12.5px] tracking-[0.12em] uppercase opacity-82 font-semibold">
                 Всего за период
             </div>
 
-            <div className="font-mono text-[52px] font-bold tracking-[-0.03em] mt-2.5 leading-none">
+            <div className="font-mono text-[44px] sm:text-[52px] font-bold tracking-[-0.03em] mt-2.5 leading-none">
                 {report ? (
                     <>
                         {total.hours}ч<span className="text-2xl opacity-75 ml-1"> {total.minutes}м</span>
@@ -18,6 +28,15 @@ export default function ContentHeaderItem1({ report, total }) {
             <div className="mt-3 text-sm opacity-85">
                 {report ? `${report.entries} записей учёта` : ' '}
             </div>
+
+            {comparison(report) && (
+                <div
+                    className="mt-1 text-sm opacity-85"
+                    title={`Прошлый период: ${report.previous.from} — ${report.previous.to.replace('T', ' ')}`}
+                >
+                    {comparison(report)}
+                </div>
+            )}
         </div>
     )
 }
